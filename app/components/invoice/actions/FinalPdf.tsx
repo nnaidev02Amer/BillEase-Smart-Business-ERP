@@ -4,7 +4,9 @@
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 
 // Components
-import { BaseButton, SendPdfToEmailModal, Subheading } from "@/app/components";
+import BaseButton from "@/app/components/reusables/BaseButton";
+import SendPdfToEmailModal from "@/app/components/modals/email/SendPdfToEmailModal";
+import Subheading from "@/app/components/reusables/Subheading";
 
 // Contexts
 import { useInvoiceContext } from "@/contexts/InvoiceContext";

@@ -1,5 +1,6 @@
 // Components
-import { BaseButton, FormInput } from "@/app/components";
+import BaseButton from "@/app/components/reusables/BaseButton";
+import FormInput from "@/app/components/reusables/form-fields/FormInput";
 
 // Icons
 import { Trash2 } from "lucide-react";

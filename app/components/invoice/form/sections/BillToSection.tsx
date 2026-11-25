@@ -4,13 +4,13 @@
 import { useFieldArray, useFormContext } from "react-hook-form";
 
 // Components
-import {
-    BaseButton,
-    PartyPicker,
-    FormCustomInput,
-    FormInput,
-    Subheading,
-} from "@/app/components";
+import BaseButton from "@/app/components/reusables/BaseButton";
+import PartyPicker from "@/app/components/invoice/form/PartyPicker";
+import FormCustomInput from "@/app/components/reusables/form-fields/FormCustomInput";
+import FormInput from "@/app/components/reusables/form-fields/FormInput";
+import Subheading from "@/app/components/reusables/Subheading";
+
+import GstinField from "@/app/components/reusables/form-fields/GstinField";
 
 // Contexts
 import { useTranslationContext } from "@/contexts/TranslationContext";
@@ -91,6 +91,17 @@ const BillToSection = () => {
                     target.value = target.value.replace(/[^\d\+\-\(\)\s]/g, "");
                 }}
             />
+            <GstinField name="receiver.gstin" label={_t("gst.gstin")} />
+            {/* Optional: printed as "Ship to" only when something is filled in. */}
+            <details className="rounded-md border border-border px-3 py-2 text-sm [&_summary]:cursor-pointer">
+                <summary className="font-medium">{_t("designer.shippingAddress")}</summary>
+                <div className="mt-3 flex flex-col gap-3">
+                    <FormInput name="receiver.shippingAddress.address" label={_t("form.steps.fromAndTo.address")} placeholder="Shipping address" />
+                    <FormInput name="receiver.shippingAddress.zipCode" label={_t("form.steps.fromAndTo.zipCode")} placeholder="Shipping zip code" />
+                    <FormInput name="receiver.shippingAddress.city" label={_t("form.steps.fromAndTo.city")} placeholder="Shipping city" />
+                    <FormInput name="receiver.shippingAddress.country" label={_t("form.steps.fromAndTo.country")} placeholder="Shipping country" />
+                </div>
+            </details>
             {/* //? key = field.id fixes a bug where wrong field gets deleted  */}
             {fields?.map((field, index) => (
                 <FormCustomInput

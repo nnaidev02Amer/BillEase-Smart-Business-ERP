@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/sheet";
 
 // Components
-import { PdfViewer } from "@/app/components";
+import PdfViewer from "@/app/components/invoice/actions/PdfViewer";
 
 // Contexts
 import { useTranslationContext } from "@/contexts/TranslationContext";

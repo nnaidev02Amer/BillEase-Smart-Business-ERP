@@ -20,7 +20,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 
 // Components
-import { TypeSignature, UploadSignature } from "@/app/components";
+import TypeSignature from "@/app/components/modals/signature/tabs/TypeSignature";
+import UploadSignature from "@/app/components/modals/signature/tabs/UploadSignature";
 
 /*
  * Imported from its own path rather than the component barrel, and lazily, so

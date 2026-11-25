@@ -1,14 +1,16 @@
 "use client";
 
 // Components
-import {
-    CurrencySelector,
-    DatePickerFormField,
-    FormInput,
-    FormFile,
-    Subheading,
-    TemplateGallery,
-} from "@/app/components";
+import CurrencySelector from "@/app/components/reusables/form-fields/CurrencySelector";
+import DatePickerFormField from "@/app/components/reusables/form-fields/DatePickerFormField";
+import FormInput from "@/app/components/reusables/form-fields/FormInput";
+import FormFile from "@/app/components/reusables/form-fields/FormFile";
+import Subheading from "@/app/components/reusables/Subheading";
+import TemplateGallery from "@/app/components/invoice/form/TemplateGallery";
+
+import StatusSelect from "@/app/components/reusables/form-fields/StatusSelect";
+import DesignerFields from "@/app/components/invoice/form/sections/DesignerFields";
+import GstSection from "@/app/components/invoice/form/sections/GstSection";
 
 // Contexts
 import { useTranslationContext } from "@/contexts/TranslationContext";
@@ -62,12 +64,18 @@ const InvoiceDetails = () => {
                         label={_t("form.steps.invoiceDetails.dueDate")}
                     />
 
+                    <StatusSelect label={_t("dashboard.invoices.columns.status")} />
+
                     <CurrencySelector
                         name="details.currency"
                         label={_t("form.steps.invoiceDetails.currency")}
                         placeholder="Select Currency"
                     />
+
+                    <GstSection />
                 </div>
+
+                <DesignerFields />
 
                 {!isDesktop && (
                     <div className="flex min-w-0 flex-col gap-2">

@@ -11,26 +11,27 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 
 // Components
-import {
-    PdfViewer,
-    BaseButton,
-    NewInvoiceAlert,
-    InvoiceLoaderModal,
-    InvoiceExportModal,
-    TemplateGallery,
-} from "@/app/components";
+import PdfViewer from "@/app/components/invoice/actions/PdfViewer";
+import BaseButton from "@/app/components/reusables/BaseButton";
+import NewInvoiceAlert from "@/app/components/modals/alerts/NewInvoiceAlert";
+import InvoiceLoaderModal from "@/app/components/modals/invoice/InvoiceLoaderModal";
+import InvoiceExportModal from "@/app/components/modals/invoice/InvoiceExportModal";
+import TemplateGallery from "@/app/components/invoice/form/TemplateGallery";
 
 // Contexts
 import { useInvoiceContext } from "@/contexts/InvoiceContext";
 import { useTranslationContext } from "@/contexts/TranslationContext";
 
 // Hooks
+import SaveTemplateDialog from "@/app/components/modals/templates/SaveTemplateDialog";
 import { useIsDesktop } from "@/hooks/useMediaQuery";
 
 // Icons
 import {
     FileInput,
+    BookmarkIcon,
     FolderUp,
+    LayoutTemplate,
     Import,
     Maximize2,
     Minimize2,
@@ -40,7 +41,7 @@ import {
 } from "lucide-react";
 
 const InvoiceActions = () => {
-    const { invoicePdfLoading, newInvoice } = useInvoiceContext();
+    const { invoicePdfLoading, newInvoice, saveInvoice, dirty } = useInvoiceContext();
 
     const { _t } = useTranslationContext();
 
@@ -70,6 +71,30 @@ const InvoiceActions = () => {
      */
     const secondaryActions = (
         <div className="flex flex-col gap-1">
+            <BaseButton
+                variant="ghost"
+                className="w-full justify-start"
+                disabled={invoicePdfLoading}
+                onClick={saveInvoice}
+            >
+                <BookmarkIcon className="h-4 w-4" />
+                {_t("actions.save")}
+                {dirty && (
+                    <span
+                        className="ms-auto h-2 w-2 rounded-full bg-warning"
+                        role="img"
+                        aria-label={_t("guards.unsavedBadge")}
+                    />
+                )}
+            </BaseButton>
+
+            <SaveTemplateDialog>
+                <BaseButton variant="ghost" className="w-full justify-start" disabled={invoicePdfLoading}>
+                    <LayoutTemplate className="h-4 w-4" />
+                    {_t("templates.saveAs")}
+                </BaseButton>
+            </SaveTemplateDialog>
+
             <InvoiceLoaderModal>
                 <BaseButton
                     variant="ghost"

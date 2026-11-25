@@ -102,11 +102,21 @@ const useToasts = () => {
         });
     };
 
-    const pdfGenerationError = () => {
+    /**
+     * `message` is a specific, safe-to-show reason (rate limit, invalid data,
+     * timeout); `retry` adds a one-click retry. Without either it is the
+     * generic message the app has always shown.
+     */
+    const pdfGenerationError = (opts?: { message?: string; retry?: () => void }) => {
         toast({
             variant: "destructive",
             title: "Could not generate the PDF",
-            description: "Something went wrong. Try again in a moment.",
+            description: opts?.message ?? "Something went wrong. Try again in a moment.",
+            action: opts?.retry ? (
+                <ToastAction onClick={opts.retry} altText="Try again">
+                    Try again
+                </ToastAction>
+            ) : undefined,
         });
     };
 

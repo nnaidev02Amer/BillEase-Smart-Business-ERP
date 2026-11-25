@@ -19,10 +19,8 @@ export const ENV = process.env.NODE_ENV;
  * current production host. No trailing slash.
  */
 export const BASE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL || "https://invoify.vercel.app"
+  process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
 ).replace(/\/$/, "");
-export const AUTHOR_WEBSITE = "https://aliabb.vercel.app";
-export const AUTHOR_GITHUB = "https://github.com/al1abb";
 
 /**
  * API endpoints
@@ -61,11 +59,10 @@ export const TAILWIND_CDN =
  */
 export const GOOGLE_SC_VERIFICATION = process.env.GOOGLE_SC_VERIFICATION;
 
-/**
- * Nodemailer
+/*
+ * Mail credentials live in lib/server/env.ts, which is server-only. They were
+ * here, in a module client components import.
  */
-export const NODEMAILER_EMAIL = process.env.NODEMAILER_EMAIL;
-export const NODEMAILER_PW = process.env.NODEMAILER_PW;
 
 /**
  * I18N
@@ -194,6 +191,7 @@ export const FORM_DEFAULT_VALUES = {
     country: "",
     email: "",
     phone: "",
+    gstin: "",
     customInputs: [],
   },
   receiver: {
@@ -204,9 +202,16 @@ export const FORM_DEFAULT_VALUES = {
     country: "",
     email: "",
     phone: "",
+    gstin: "",
     customInputs: [],
+    shippingAddress: { address: "", zipCode: "", city: "", country: "" },
   },
   details: {
+    status: "draft" as const,
+    gst: { enabled: false, pricing: "exclusive" as const, placeOfSupply: "" },
+    terms: "",
+    paymentInstructions: "",
+    recurring: { frequency: "none" as const, endDate: "" },
     invoiceLogo: "",
     invoiceNumber: "",
     invoiceDate: "",
@@ -250,6 +255,9 @@ export const FORM_DEFAULT_VALUES = {
       accentColor: "#4F46E5",
       fontId: "outfit",
       density: "comfortable",
+      paper: "a4",
+      headerText: "",
+      footerText: "",
     } as const,
   },
 };

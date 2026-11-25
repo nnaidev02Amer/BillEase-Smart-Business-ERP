@@ -7,7 +7,7 @@ import nodemailer, { SendMailOptions } from "nodemailer";
 import { render } from "@react-email/render";
 
 // Components
-import { SendPdfEmail } from "@/app/components";
+import SendPdfEmail from "@/app/components/templates/email/SendPdfEmail";
 
 // Helpers
 import { fileToBuffer, isValidEmail } from "@/lib/helpers";
@@ -16,7 +16,7 @@ import { fileToBuffer, isValidEmail } from "@/lib/helpers";
 import { getClientKey, rateLimit } from "@/lib/server/rateLimit";
 
 // Variables
-import { NODEMAILER_EMAIL, NODEMAILER_PW } from "@/lib/variables";
+import { NODEMAILER_EMAIL, NODEMAILER_PW } from "@/lib/server/env";
 
 // Nodemailer transporter
 const transporter = nodemailer.createTransport({
@@ -140,7 +140,7 @@ export async function sendPdfToEmailService(
         const mailOptions: SendMailOptions = {
             // A bare display name with no address can be rewritten or flagged
             // by receiving providers.
-            from: `"Invoify" <${NODEMAILER_EMAIL}>`,
+            from: `"BillEase" <${NODEMAILER_EMAIL}>`,
             to: email,
             subject: `Invoice Ready: #${invoiceNumber}`,
             html: emailHTML,

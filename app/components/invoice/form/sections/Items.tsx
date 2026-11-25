@@ -23,7 +23,10 @@ import {
 } from "@dnd-kit/sortable";
 
 // Components
-import { BaseButton, SingleItem, Subheading, VoiceInput } from "@/app/components";
+import BaseButton from "@/app/components/reusables/BaseButton";
+import SingleItem from "@/app/components/invoice/form/SingleItem";
+import Subheading from "@/app/components/reusables/Subheading";
+import VoiceInput from "@/app/components/invoice/form/VoiceInput";
 
 // Contexts
 import { useTranslationContext } from "@/contexts/TranslationContext";

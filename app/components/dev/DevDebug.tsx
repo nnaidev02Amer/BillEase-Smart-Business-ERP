@@ -6,7 +6,7 @@
 import { useFormContext } from "react-hook-form";
 
 // Component
-import { BaseButton } from "@/app/components";
+import BaseButton from "@/app/components/reusables/BaseButton";
 
 // Variables
 import { FORM_FILL_VALUES } from "@/lib/variables";

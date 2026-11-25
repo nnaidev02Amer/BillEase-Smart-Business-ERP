@@ -57,8 +57,11 @@ export type InvoiceTemplateExtras = {
  * Both are their own piece of work — an embedded CJK subset and RTL template
  * support respectively — not something to half-ship here.
  */
+export type DocumentKind = "invoice" | "quotation" | "purchaseOrder";
+
 export function buildInvoiceLabels(
-    messages: Record<string, unknown> | undefined
+    messages: Record<string, unknown> | undefined,
+    kind: DocumentKind = "invoice"
 ): InvoiceLabels {
     const section = (messages?.invoiceDocument ?? {}) as Partial<InvoiceLabels>;
 
@@ -67,6 +70,21 @@ export function buildInvoiceLabels(
         const value = section[key];
         if (typeof value === "string" && value.length > 0) {
             labels[key] = value;
+        }
+    }
+
+    /*
+     * A quotation is the same document wearing different words: "Quotation #",
+     * "Valid until", "Prepared for". Only the labels that differ are listed in
+     * `quotationDocument`; everything else is the invoice wording, so the
+     * layouts, totals and tax tables stay identical and need no second copy.
+     */
+    // A purchase order is worded the same way, from `purchaseOrderDocument`.
+    if (kind === "quotation" || kind === "purchaseOrder") {
+        const overrides = (messages?.[kind === "quotation" ? "quotationDocument" : "purchaseOrderDocument"] ?? {}) as Partial<InvoiceLabels>;
+        for (const key of Object.keys(overrides) as InvoiceLabelKey[]) {
+            const value = overrides[key];
+            if (typeof value === "string" && value.length > 0) labels[key] = value;
         }
     }
     return labels;

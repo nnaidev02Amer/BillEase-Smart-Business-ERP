@@ -9,7 +9,8 @@ import { useLocale, useMessages } from "next-intl";
 import { useFormContext } from "react-hook-form";
 
 // Components
-import { DynamicInvoiceTemplate, Subheading } from "@/app/components";
+import DynamicInvoiceTemplate from "@/app/components/templates/invoice-pdf/DynamicInvoiceTemplate";
+import Subheading from "@/app/components/reusables/Subheading";
 
 // Labels
 import { buildInvoiceLabels } from "@/app/components/templates/invoice-pdf/invoiceLabels";

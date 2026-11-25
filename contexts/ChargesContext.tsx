@@ -14,7 +14,9 @@ import React, {
 import { useFormContext, useWatch } from "react-hook-form";
 
 // Helpers
-import { formatPriceToString } from "@/lib/helpers";
+import { fetchCurrencyDetails, formatPriceToString } from "@/lib/helpers";
+import { computeTotals } from "@/lib/calculations";
+import { computeGst, supplyTypeOf } from "@/lib/gst";
 
 // Types
 import { InvoiceType, ItemType } from "@/types";
@@ -63,6 +65,14 @@ export const ChargesContextProvider = ({ children }: ChargesContextProps) => {
         name: `details.currency`,
         control,
     });
+
+    // GST. Primitives only, for the same reason as the charge amounts below:
+    // calculateTotal writes into details.gst, so depending on the object would
+    // loop.
+    const gstEnabled = useWatch({ name: `details.gst.enabled`, control }) === true;
+    const gstPricing = useWatch({ name: `details.gst.pricing`, control });
+    const placeOfSupply = useWatch({ name: `details.gst.placeOfSupply`, control });
+    const sellerGstin = useWatch({ name: `sender.gstin`, control });
 
     // Charges
     const charges = {
@@ -170,54 +180,72 @@ export const ChargesContextProvider = ({ children }: ChargesContextProps) => {
         setSubTotal(totalSum);
 
         /*
-         * The `?? 0` these carried was dead: parseFloat returns NaN for bad
-         * input, and `??` only guards null/undefined. The isNaN checks below
-         * are what actually handle it, so the fallback is dropped rather than
-         * replaced — defaulting to 0 here would change behaviour by making the
-         * guarded blocks run (and setValue) on invalid input.
+         * Arithmetic lives in lib/calculations so it is one tested function
+         * rather than inline mutation. It rounds to the currency's decimals
+         * (0.1 + 0.2 no longer yields 0.30000000000000004) and refuses to let a
+         * discount push the total below zero, which the schema would otherwise
+         * reject with an unhelpful message.
          */
-        const discountAmount: number = parseFloat(discount!.amount.toString());
-        const taxAmount: number = parseFloat(tax!.amount.toString());
-        const shippingCost: number = parseFloat(shipping!.cost.toString());
+        const decimals = fetchCurrencyDetails(currency)?.decimals ?? 2;
+        const totals = computeTotals({
+            subTotal: totalSum,
+            discount: { value: discount?.amount, type: discountType },
+            tax: { value: gstEnabled ? 0 : tax?.amount, type: taxType },
+            shipping: { value: shipping?.cost, type: shippingType },
+            decimals,
+        });
+        let total = totals.total;
 
-        let discountAmountType: string = "amount";
-        let taxAmountType: string = "amount";
-        let shippingCostType: string = "amount";
-
-        let total: number = totalSum;
-
-        if (!isNaN(discountAmount)) {
-            if (discountType == "amount") {
-                total -= discountAmount;
-                discountAmountType = "amount";
-            } else {
-                total -= total * (discountAmount / 100);
-                discountAmountType = "percentage";
-            }
-            setValue("details.discountDetails.amount", discountAmount);
+        /*
+         * GST replaces the single flat "tax" charge. Discount and shipping keep
+         * their meaning; tax is derived per line from each item's GST rate.
+         * When GST is on but incomplete (no seller GSTIN / place of supply yet)
+         * the invoice falls back to the plain calculation and the schema blocks
+         * saving until the missing fields are filled in.
+         */
+        const supply = gstEnabled ? supplyTypeOf(sellerGstin, placeOfSupply) : null;
+        if (gstEnabled && supply) {
+            const gstResult = computeGst({
+                lines: (itemsArray as ItemType[]).map((item) => ({
+                    amount: Number(item.total) || 0,
+                    rate: item.gstRate ?? 0,
+                    hsn: item.hsn,
+                    quantity: Number(item.quantity) || 0,
+                })),
+                pricing: gstPricing === "inclusive" ? "inclusive" : "exclusive",
+                supply,
+                discount: { value: discount?.amount, type: discountType },
+                shipping: { value: shipping?.cost, type: shippingType },
+                decimals,
+            });
+            total = gstResult.total;
+            setValue("details.gst.taxableValue", gstResult.taxableValue);
+            setValue("details.gst.cgst", gstResult.cgst);
+            setValue("details.gst.sgst", gstResult.sgst);
+            setValue("details.gst.igst", gstResult.igst);
+            setValue("details.gst.totalTax", gstResult.totalTax);
+        } else if (!gstEnabled && getValues("details.gst.totalTax")) {
+            // GST was switched off: drop the derived figures so nothing stale
+            // is printed or exported.
+            setValue("details.gst.taxableValue", 0);
+            setValue("details.gst.cgst", 0);
+            setValue("details.gst.sgst", 0);
+            setValue("details.gst.igst", 0);
+            setValue("details.gst.totalTax", 0);
         }
 
-        if (!isNaN(taxAmount)) {
-            if (taxType == "amount") {
-                total += taxAmount;
-                taxAmountType = "amount";
-            } else {
-                total += total * (taxAmount / 100);
-                taxAmountType = "percentage";
-            }
-            setValue("details.taxDetails.amount", taxAmount);
-        }
+        const discountAmount = parseFloat(String(discount?.amount));
+        // With GST on, the flat tax charge is not used (the UI hides it).
+        const taxAmount = gstEnabled ? 0 : parseFloat(String(tax?.amount));
+        const shippingCost = parseFloat(String(shipping?.cost));
 
-        if (!isNaN(shippingCost)) {
-            if (shippingType == "amount") {
-                total += shippingCost;
-                shippingCostType = "amount";
-            } else {
-                total += total * (shippingCost / 100);
-                shippingCostType = "percentage";
-            }
-            setValue("details.shippingDetails.cost", shippingCost);
-        }
+        const discountAmountType = discountType == "amount" ? "amount" : "percentage";
+        const taxAmountType = taxType == "amount" ? "amount" : "percentage";
+        const shippingCostType = shippingType == "amount" ? "amount" : "percentage";
+
+        if (!isNaN(discountAmount)) setValue("details.discountDetails.amount", discountAmount);
+        if (!isNaN(taxAmount)) setValue("details.taxDetails.amount", taxAmount);
+        if (!isNaN(shippingCost)) setValue("details.shippingDetails.cost", shippingCost);
 
         setTotalAmount(total);
 
@@ -251,6 +279,10 @@ export const ChargesContextProvider = ({ children }: ChargesContextProps) => {
         taxType,
         shippingType,
         totalInWordsSwitch,
+        gstEnabled,
+        gstPricing,
+        placeOfSupply,
+        sellerGstin,
         // read via getValues inside, but a change must still recalculate
         currency,
         setValue,

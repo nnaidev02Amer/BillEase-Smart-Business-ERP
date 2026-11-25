@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 
 // Components
-import { BaseButton } from "@/app/components";
+import BaseButton from "@/app/components/reusables/BaseButton";
 
 // Context
 import { useInvoiceContext } from "@/contexts/InvoiceContext";

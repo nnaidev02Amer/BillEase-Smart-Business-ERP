@@ -1,13 +1,14 @@
 "use client";
 
 // RHF
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 
 // ShadCn
 import { Switch } from "@/components/ui/switch";
 
 // Components
-import { BaseButton, ChargeInput } from "@/app/components";
+import BaseButton from "@/app/components/reusables/BaseButton";
+import ChargeInput from "@/app/components/reusables/form-fields/ChargeInput";
 
 // Contexts
 import { useChargesContext } from "@/contexts/ChargesContext";
@@ -24,8 +25,12 @@ import { InvoiceType } from "@/types";
 
 const Charges = () => {
     const {
+        control,
         formState: { errors },
     } = useFormContext<InvoiceType>();
+
+    const gst = useWatch({ control, name: "details.gst" });
+    const gstOn = gst?.enabled === true;
 
     const { _t } = useTranslationContext();
 
@@ -95,7 +100,9 @@ const Charges = () => {
         },
     ] as const;
 
-    const hidden = optional.filter((o) => !o.on);
+    // With GST on, per-line GST replaces the single flat tax charge.
+    const available = gstOn ? optional.filter((o) => o.key !== "tax") : optional;
+    const hidden = available.filter((o) => !o.on);
 
     return (
         <div className="flex w-full min-w-0 flex-col gap-3">
@@ -108,7 +115,7 @@ const Charges = () => {
                 </span>
             </div>
 
-            {optional
+            {available
                 .filter((o) => o.on)
                 .map((o) => (
                     <div key={o.key} className="flex items-center gap-1">
@@ -147,6 +154,34 @@ const Charges = () => {
                             {o.label}
                         </button>
                     ))}
+                </div>
+            )}
+
+            {gstOn && (
+                <div className="flex flex-col gap-1 rounded-md bg-muted/40 p-3 text-sm" data-testid="gst-breakdown">
+                    {(
+                        [
+                            [_t("gst.taxableValue"), gst?.taxableValue, true],
+                            [_t("gst.cgst"), gst?.cgst, Number(gst?.cgst) > 0],
+                            [_t("gst.sgst"), gst?.sgst, Number(gst?.sgst) > 0],
+                            [_t("gst.igst"), gst?.igst, Number(gst?.igst) > 0],
+                        ] as [string, number | undefined, boolean][]
+                    )
+                        .filter(([, , show]) => show)
+                        .map(([label, v]) => (
+                            <div key={label} className="flex justify-between">
+                                <span className="text-muted-foreground">{label}</span>
+                                <span className="tabular-nums">
+                                    {formatNumberWithCommas(Number(v ?? 0))} {currency}
+                                </span>
+                            </div>
+                        ))}
+                    <div className="flex justify-between font-medium">
+                        <span>{_t("gst.totalTax")}</span>
+                        <span className="tabular-nums">
+                            {formatNumberWithCommas(Number(gst?.totalTax ?? 0))} {currency}
+                        </span>
+                    </div>
                 </div>
             )}
 

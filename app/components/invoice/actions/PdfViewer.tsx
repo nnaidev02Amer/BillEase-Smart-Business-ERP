@@ -7,7 +7,8 @@ import { useDebounce } from "use-debounce";
 import { useFormContext, useWatch } from "react-hook-form";
 
 // Components
-import { FinalPdf, LivePreview } from "@/app/components";
+import FinalPdf from "@/app/components/invoice/actions/FinalPdf";
+import LivePreview from "@/app/components/invoice/actions/LivePreview";
 
 // Contexts
 import { useInvoiceContext } from "@/contexts/InvoiceContext";

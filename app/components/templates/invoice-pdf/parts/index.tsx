@@ -1,13 +1,15 @@
 import React from "react";
 
 // Helpers
-import { formatDate, formatNumberWithCommas, isDataUrl } from "@/lib/helpers";
+import { fetchCurrencyDetails, formatDate, formatNumberWithCommas, isDataUrl } from "@/lib/helpers";
+import { GST_STATES, gstOfInvoice } from "@/lib/gst";
 
 // Labels & theme
 import type { InvoiceLabels } from "../invoiceLabels";
 import { type InvoiceScale, type InvoiceTheme } from "../invoiceTheme";
 
 // Types
+import { amountPaid, balanceDue } from "@/lib/invoiceRecords";
 import type { InvoiceType } from "@/types";
 
 /**
@@ -85,6 +87,14 @@ const money = (value: unknown, currency: string, locale: string) => {
         return `${formatNumberWithCommas(amount)} ${currency}`;
     }
 };
+
+/**
+ * GST figures for a document, or null for an ordinary invoice. Recomputed from
+ * the lines (a pure function) so the PDF and the live preview agree and never
+ * depend on stored derived numbers.
+ */
+const gstFor = (data: InvoiceType) =>
+    gstOfInvoice(data, fetchCurrencyDetails(data.details.currency)?.decimals ?? 2);
 
 /* ------------------------------------------------------------------ */
 
@@ -190,12 +200,36 @@ export function PartyBlock({
                 )}
             </address>
 
+            {party.gstin && (
+                <p className={`${scale.body} text-gray-600`}>
+                    <span className="font-medium">{ctx.labels.gstin}:</span>{" "}
+                    <span className="tabular-nums">{party.gstin}</span>
+                </p>
+            )}
+
             {party.customInputs?.map((input, i) => (
                 <p key={i} className={`${scale.body} text-gray-600`}>
                     <span className="font-medium">{input.key}:</span>{" "}
                     {input.value}
                 </p>
             ))}
+
+            {"shippingAddress" in party &&
+                party.shippingAddress &&
+                Object.values(party.shippingAddress).some(Boolean) && (
+                    <div className="mt-2">
+                        <p className={`${scale.label} font-semibold uppercase tracking-wider text-gray-500`}>
+                            {ctx.labels.shipTo}
+                        </p>
+                        <address className={`${scale.body} not-italic leading-relaxed text-gray-600`}>
+                            {party.shippingAddress.address}
+                            {party.shippingAddress.address && <br />}
+                            {[party.shippingAddress.zipCode, party.shippingAddress.city].filter(Boolean).join(", ")}
+                            {(party.shippingAddress.zipCode || party.shippingAddress.city) && <br />}
+                            {party.shippingAddress.country}
+                        </address>
+                    </div>
+                )}
         </div>
     );
 }
@@ -217,8 +251,24 @@ export function DocumentMeta({
         [labels.dueDate, formatDate(details.dueDate, locale), "details.dueDate"],
     ];
 
+    if (details.quotationRef?.number) {
+        rows.push([labels.quotationRef, details.quotationRef.number, "details.quotationRef"]);
+    }
+    const gst = details.gst?.enabled ? details.gst : null;
+    if (gst) {
+        if (gst.placeOfSupply && GST_STATES[gst.placeOfSupply]) {
+            rows.push([labels.placeOfSupply, `${gst.placeOfSupply} – ${GST_STATES[gst.placeOfSupply]}`, "details.gst.placeOfSupply"]);
+        }
+        if (gst.reverseCharge) rows.push([labels.reverseCharge, labels.yes, "details.gst.reverseCharge"]);
+    }
+
     return (
         <div className={align === "right" ? "text-end" : ""}>
+            {gst && (
+                <p className={`${scale.label} mb-1 font-bold uppercase tracking-wider text-gray-900`}>
+                    {labels.taxInvoice}
+                </p>
+            )}
             {rows.map(([label, value, field]) => (
                 <div
                     key={label}
@@ -248,8 +298,16 @@ export function ItemsTable({ ctx, variant = "rule" }: ItemsTableProps) {
     const { details } = data;
 
     const headFilled = variant === "filled";
+    const gstOn = details.gst?.enabled === true;
+    const gstInfo = gstOn ? gstFor(data) : null;
+
+    // GST adds HSN/SAC after the item name and the rate before the amount.
+    const headers = gstOn
+        ? [labels.item, labels.hsn, labels.qty, labels.rate, labels.gstRate, labels.amount]
+        : [labels.item, labels.qty, labels.rate, labels.amount];
 
     return (
+        <>
         <table className="w-full border-collapse">
             <thead>
                 <tr
@@ -259,7 +317,7 @@ export function ItemsTable({ ctx, variant = "rule" }: ItemsTableProps) {
                             : undefined
                     }
                 >
-                    {[labels.item, labels.qty, labels.rate, labels.amount].map(
+                    {headers.map(
                         (h, i) => (
                             <th
                                 key={h}
@@ -311,6 +369,11 @@ export function ItemsTable({ ctx, variant = "rule" }: ItemsTableProps) {
                                 </p>
                             )}
                         </td>
+                        {gstOn && (
+                            <td className={`${scale.rowY} ${scale.body} whitespace-nowrap text-end align-top tabular-nums text-gray-700`}>
+                                {item.hsn || "–"}
+                            </td>
+                        )}
                         <td
                             className={`${scale.rowY} ${scale.body} whitespace-nowrap text-end align-top tabular-nums text-gray-700`}
                         >
@@ -321,6 +384,11 @@ export function ItemsTable({ ctx, variant = "rule" }: ItemsTableProps) {
                         >
                             {money(item.unitPrice, details.currency, locale)}
                         </td>
+                        {gstOn && (
+                            <td className={`${scale.rowY} ${scale.body} whitespace-nowrap text-end align-top tabular-nums text-gray-700`}>
+                                {item.gstRate ?? 0}%
+                            </td>
+                        )}
                         <td
                             className={`${scale.rowY} ${headFilled ? "px-2" : ""} ${scale.body} whitespace-nowrap text-end align-top font-medium tabular-nums text-gray-900`}
                         >
@@ -330,6 +398,64 @@ export function ItemsTable({ ctx, variant = "rule" }: ItemsTableProps) {
                 ))}
             </tbody>
         </table>
+        {gstInfo && gstInfo.hsnSummary.length > 0 && <TaxSummary ctx={ctx} gst={gstInfo} />}
+        </>
+    );
+}
+
+/**
+ * Tax summary by HSN/SAC and rate, as GST invoices conventionally carry.
+ * Intra-state shows CGST + SGST columns; inter-state shows IGST.
+ */
+function TaxSummary({ ctx, gst }: { ctx: PartCtx; gst: NonNullable<ReturnType<typeof gstFor>> }) {
+    const { labels, scale, locale, data } = ctx;
+    const { currency } = data.details;
+    const intra = gst.supply === "intra";
+    const heads = intra
+        ? [labels.hsn, labels.taxableValue, labels.cgst, labels.sgst, labels.totalTax]
+        : [labels.hsn, labels.taxableValue, labels.igst, labels.totalTax];
+    const cell = `${scale.label} py-1 text-end tabular-nums text-gray-700`;
+
+    return (
+        <div className="mt-4" data-testid="tax-summary">
+            <p className={`${scale.label} mb-1 font-semibold uppercase tracking-wider text-gray-500`}>
+                {labels.taxSummary}
+                {data.details.gst?.pricing === "inclusive" ? ` · ${labels.pricesIncludeGst}` : ""}
+            </p>
+            <table className="w-full border-collapse">
+                <thead>
+                    <tr>
+                        {heads.map((h, i) => (
+                            <th
+                                key={h + i}
+                                className={`${scale.label} border-b border-gray-300 pb-1 font-semibold ${i === 0 ? "text-start" : "text-end"} text-gray-600`}
+                            >
+                                {h}
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {gst.hsnSummary.map((row) => (
+                        <tr key={`${row.hsn}-${row.rate}`} className="border-b border-gray-100">
+                            <td className={`${scale.label} py-1 text-gray-700`}>
+                                {row.hsn || "–"} · {row.rate}%
+                            </td>
+                            <td className={cell}>{money(row.taxable, currency, locale)}</td>
+                            {intra ? (
+                                <>
+                                    <td className={cell}>{money(row.cgst, currency, locale)}</td>
+                                    <td className={cell}>{money(row.sgst, currency, locale)}</td>
+                                </>
+                            ) : (
+                                <td className={cell}>{money(row.igst, currency, locale)}</td>
+                            )}
+                            <td className={cell}>{money(row.tax, currency, locale)}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
     );
 }
 
@@ -358,7 +484,16 @@ export function TotalsBlock({
                 : `- ${details.discountDetails.amount}%`,
         ]);
     }
-    if (details.taxDetails?.amount) {
+    const gst = details.gst?.enabled ? gstFor(data) : null;
+    if (gst) {
+        rows.push([labels.taxableValue, money(gst.taxableValue, details.currency, locale)]);
+        if (gst.supply === "intra") {
+            rows.push([labels.cgst, `+ ${money(gst.cgst, details.currency, locale)}`]);
+            rows.push([labels.sgst, `+ ${money(gst.sgst, details.currency, locale)}`]);
+        } else {
+            rows.push([labels.igst, `+ ${money(gst.igst, details.currency, locale)}`]);
+        }
+    } else if (details.taxDetails?.amount) {
         rows.push([
             labels.tax,
             details.taxDetails.amountType === "amount"
@@ -407,6 +542,19 @@ export function TotalsBlock({
                 </span>
             </div>
 
+            {amountPaid(data) > 0 && (
+                <div className={`${scale.body} mt-2 space-y-1`}>
+                    <div className="flex justify-between gap-6 text-gray-600">
+                        <span>{labels.paid}</span>
+                        <span className="tabular-nums">- {money(amountPaid(data), details.currency, locale)}</span>
+                    </div>
+                    <div className="flex justify-between gap-6 font-semibold text-gray-900">
+                        <span>{labels.balanceDue}</span>
+                        <span className="tabular-nums">{money(balanceDue(data), details.currency, locale)}</span>
+                    </div>
+                </div>
+            )}
+
             {details.totalAmountInWords && (
                 <p className={`${scale.label} mt-1.5 italic text-gray-500`}>
                     {labels.totalInWords}: {details.totalAmountInWords}{" "}
@@ -422,7 +570,8 @@ export function TotalsBlock({
 export function PaymentBlock({ ctx }: { ctx: PartCtx }) {
     const { data, labels, scale, locale } = ctx;
     const pay = data.details.paymentInformation;
-    if (!pay?.bankName && !pay?.accountName && !pay?.accountNumber) return null;
+    const instructions = data.details.paymentInstructions;
+    if (!pay?.bankName && !pay?.accountName && !pay?.accountNumber && !instructions) return null;
 
     return (
         <div data-edit-field="details.paymentInformation.bankName">
@@ -447,6 +596,11 @@ export function PaymentBlock({ ctx }: { ctx: PartCtx }) {
                         {labels.accountNumber}: {pay.accountNumber}
                     </p>
                 )}
+                {instructions && (
+                    <p className="mt-1 whitespace-pre-line" data-edit-field="details.paymentInstructions">
+                        {instructions}
+                    </p>
+                )}
             </div>
         </div>
     );
@@ -455,7 +609,7 @@ export function PaymentBlock({ ctx }: { ctx: PartCtx }) {
 export function NotesBlock({ ctx }: { ctx: PartCtx }) {
     const { data, labels, scale, locale } = ctx;
     const { details } = data;
-    if (!details.additionalNotes && !details.paymentTerms) return null;
+    if (!details.additionalNotes && !details.paymentTerms && !details.terms) return null;
 
     return (
         <div className="space-y-2">
@@ -469,6 +623,14 @@ export function NotesBlock({ ctx }: { ctx: PartCtx }) {
                     <p className={`${scale.body} text-gray-700`}>
                         {details.paymentTerms}
                     </p>
+                </div>
+            )}
+            {details.terms && (
+                <div data-edit-field="details.terms">
+                    <p className={`${scale.label} font-semibold uppercase tracking-wider text-gray-500`}>
+                        {labels.terms}
+                    </p>
+                    <p className={`${scale.body} whitespace-pre-line text-gray-700`}>{details.terms}</p>
                 </div>
             )}
             {details.additionalNotes && (

@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "@/components/ui/use-toast";
+import { imageErrorMessage, validateImageFile } from "@/lib/fileValidation";
 import React, {
     MutableRefObject,
     createContext,
@@ -186,9 +188,16 @@ export const SignatureContextProvider = ({
      * @param e - Event object from file input
      */
     const handleUploadSignatureChange = useCallback(
-        (e: React.ChangeEvent<HTMLInputElement>) => {
-            const file = e.target.files![0];
+        async (e: React.ChangeEvent<HTMLInputElement>) => {
+            const input = e.target;
+            const file = input.files![0];
             if (file) {
+                const check = await validateImageFile(file);
+                if (!check.ok) {
+                    toast({ variant: "destructive", title: "Signature not accepted", description: imageErrorMessage(check.reason) });
+                    input.value = "";
+                    return;
+                }
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     const base64String = event.target!.result as string;

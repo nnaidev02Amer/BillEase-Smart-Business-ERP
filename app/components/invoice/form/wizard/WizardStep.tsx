@@ -6,7 +6,8 @@ import React from "react";
 import { useWizard } from "@/contexts/WizardContext";
 
 // Components
-import { WizardNavigation, WizardProgress } from "@/app/components";
+import WizardNavigation from "@/app/components/invoice/form/wizard/WizardNavigation";
+import WizardProgress from "@/app/components/invoice/form/wizard/WizardProgress";
 
 type WizardStepProps = {
     /** Index of this step, from WIZARD_STEPS. */

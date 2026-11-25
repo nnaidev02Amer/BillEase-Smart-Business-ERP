@@ -23,6 +23,8 @@ import { TranslationProvider } from "@/contexts/TranslationContext";
 import { InvoiceContextProvider } from "@/contexts/InvoiceContext";
 import { ChargesContextProvider } from "@/contexts/ChargesContext";
 
+import KeyboardShortcuts from "@/app/components/layout/KeyboardShortcuts";
+
 // Storage
 import { readSecure } from "@/lib/secureStore";
 
@@ -116,7 +118,10 @@ const Providers = ({ children }: ProvidersProps) => {
       <TranslationProvider>
         <FormProvider {...form}>
           <InvoiceContextProvider>
-            <ChargesContextProvider>{children}</ChargesContextProvider>
+            <ChargesContextProvider>
+              {children}
+              <KeyboardShortcuts />
+            </ChargesContextProvider>
           </InvoiceContextProvider>
         </FormProvider>
       </TranslationProvider>

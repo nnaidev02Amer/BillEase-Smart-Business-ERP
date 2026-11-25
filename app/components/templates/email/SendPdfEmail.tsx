@@ -9,19 +9,14 @@ import {
     Preview,
     Section,
     Text,
-    Img,
 } from "@react-email/components";
 import { Tailwind } from "@react-email/tailwind";
-
-// Variables
-import { BASE_URL } from "@/lib/variables";
 
 type SendPdfEmailProps = {
     invoiceNumber: string;
 };
 
 export default function SendPdfEmail({ invoiceNumber }: SendPdfEmailProps) {
-    const logo = `${BASE_URL}/assets/img/invoify-logo.png`;
     return (
         <Html>
             <Head />
@@ -32,14 +27,12 @@ export default function SendPdfEmail({ invoiceNumber }: SendPdfEmailProps) {
                 <Body className="bg-gray-100">
                     <Container>
                         <Section className="bg-white border-black-950 my-10 px-10 py-4 rounded-md">
-                            <Img
-                                src={logo}
-                                alt="Invoify Logo"
-                                width={200}
-                                height={120}
-                            />
+                            {/* A text wordmark: it renders everywhere, and needs no hosted image. */}
+                            <Text className="m-0 text-3xl font-bold" style={{ color: "#4F46E5" }}>
+                                BillEase
+                            </Text>
                             <Heading className="leading-tight">
-                                Thanks for using Invoify!
+                                Thanks for using BillEase!
                             </Heading>
 
                             <Text>
@@ -54,7 +47,7 @@ export default function SendPdfEmail({ invoiceNumber }: SendPdfEmailProps) {
                             <Text>
                                 Best Regards,
                                 <br />
-                                Invoify Team
+                                BillEase Team
                             </Text>
                         </Section>
                     </Container>

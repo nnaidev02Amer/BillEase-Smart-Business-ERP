@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getMessages } from "@/i18n/messages";
 
 // Invoice document labels
-import { buildInvoiceLabels } from "@/app/components/templates/invoice-pdf/invoiceLabels";
+import { buildInvoiceLabels, type DocumentKind } from "@/app/components/templates/invoice-pdf/invoiceLabels";
 
 // Helpers
 import { getInvoiceTemplate } from "@/lib/helpers";
@@ -30,6 +30,7 @@ import { PDF_TAILWIND_CSS } from "@/lib/pdfStyles.generated";
 
 // Browser
 import { withPdfPage } from "./pdfPage";
+import { PAPER_SIZES, resolveTheme } from "@/app/components/templates/invoice-pdf/invoiceTheme";
 import { getCachedPdf, pdfCacheKey, setCachedPdf } from "./pdfCache";
 
 // Types
@@ -51,14 +52,17 @@ export async function generatePdfService(req: NextRequest) {
 
     const body = parsed.data as InvoiceType;
     const locale = resolveLocale(req.nextUrl.searchParams.get("locale"));
+    // Quotations are rendered by the same templates with different wording.
+    const requestedKind = req.nextUrl.searchParams.get("kind");
+    const kind: DocumentKind = requestedKind === "quotation" ? "quotation" : requestedKind === "purchaseOrder" ? "purchaseOrder" : "invoice";
 
     /*
      * Identical input, identical output — so re-submitting an unchanged invoice
      * should not cost a full render. Checked before any work is done.
      */
-    const cacheKey = pdfCacheKey(body, locale);
+    const cacheKey = pdfCacheKey(body, `${locale}|${kind}`);
     const cached = getCachedPdf(cacheKey);
-    if (cached) return pdfResponse(cached, true);
+    if (cached) return pdfResponse(cached, true, kind);
 
     try {
         const ReactDOMServer = (await import("react-dom/server")).default;
@@ -84,7 +88,7 @@ export async function generatePdfService(req: NextRequest) {
         const htmlTemplate = ReactDOMServer.renderToStaticMarkup(
             React.createElement(InvoiceTemplate, {
                 ...body,
-                labels: buildInvoiceLabels(messages),
+                labels: buildInvoiceLabels(messages, kind),
                 // Drives Intl number/currency formatting inside the document.
                 locale,
             })
@@ -95,7 +99,13 @@ export async function generatePdfService(req: NextRequest) {
          * pdfPage.ts. Creating a page per request was the largest remaining
          * fixed cost once the browser itself was shared.
          */
+        // Paper size: the page is laid out against the chosen paper's viewport
+        // and printed to the same format, so the PDF matches the sheet the
+        // preview shows.
+        const paper = PAPER_SIZES[resolveTheme(body.details.theme).paper];
+
         const pdf = await withPdfPage(async (page) => {
+            await page.setViewport({ ...paper.viewport, deviceScaleFactor: 1 });
             /*
              * `networkidle0` waits for 500ms of complete network silence. The
              * stylesheet is inlined below and the fonts are embedded in it, so
@@ -132,7 +142,7 @@ export async function generatePdfService(req: NextRequest) {
              * fixed frame imposed on all thirteen.
              */
             return page.pdf({
-                format: "a4",
+                format: paper.pdfFormat,
                 printBackground: true,
                 margin: { top: "0", right: "0", bottom: "0", left: "0" },
             });
@@ -140,7 +150,7 @@ export async function generatePdfService(req: NextRequest) {
 
         setCachedPdf(cacheKey, pdf);
 
-        return pdfResponse(pdf, false);
+        return pdfResponse(pdf, false, kind);
     } catch (error) {
         console.error("PDF Generation Error:", error);
         return NextResponse.json(
@@ -159,11 +169,11 @@ export async function generatePdfService(req: NextRequest) {
  * in a shared cache; the in-process cache above never crosses a request
  * boundary and is keyed on the full validated body.
  */
-function pdfResponse(pdf: Uint8Array, cacheHit: boolean) {
+function pdfResponse(pdf: Uint8Array, cacheHit: boolean, kind: DocumentKind = "invoice") {
     return new NextResponse(pdf, {
         headers: {
             "Content-Type": "application/pdf",
-            "Content-Disposition": "inline; filename=invoice.pdf",
+            "Content-Disposition": `inline; filename=${kind}.pdf`,
             "Content-Length": String(pdf.byteLength),
             "Cache-Control": "no-store",
             // Diagnostic only — makes a cache hit observable in the network tab

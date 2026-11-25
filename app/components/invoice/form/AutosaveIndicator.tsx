@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 // Contexts
-import { useInvoiceContext } from "@/contexts/InvoiceContext";
+import { useDraftStatus } from "@/contexts/InvoiceContext";
 import { useTranslationContext } from "@/contexts/TranslationContext";
 
 // Icons
@@ -18,7 +18,7 @@ import { Check, Loader2 } from "lucide-react";
  * observable state; this surfaces it.
  */
 const AutosaveIndicator = () => {
-    const { draftSavedAt, draftPending } = useInvoiceContext();
+    const { draftSavedAt, draftPending } = useDraftStatus();
     const { _t } = useTranslationContext();
 
     /*

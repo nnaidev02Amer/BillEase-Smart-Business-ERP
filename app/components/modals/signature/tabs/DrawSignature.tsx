@@ -10,7 +10,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { TabsContent } from "@/components/ui/tabs";
 
 // Components
-import { BaseButton, SignatureColorSelector } from "@/app/components";
+import BaseButton from "@/app/components/reusables/BaseButton";
+import SignatureColorSelector from "@/app/components/modals/signature/components/SignatureColorSelector";
 
 // Contexts
 import { useSignatureContext } from "@/contexts/SignatureContext";

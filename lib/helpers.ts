@@ -289,6 +289,7 @@ export {
     formatNumberWithCommas,
     formatDate,
     formatPriceToString,
+    fetchCurrencyDetails,
     flattenObject,
     isValidEmail,
     isDataUrl,

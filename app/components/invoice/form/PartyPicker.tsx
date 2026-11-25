@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/popover";
 
 // Components
-import { BaseButton } from "@/app/components";
+import BaseButton from "@/app/components/reusables/BaseButton";
 
 // Contexts
 import { useTranslationContext } from "@/contexts/TranslationContext";
@@ -24,6 +24,7 @@ import {
     deleteParty,
     readParties,
     saveParty,
+    toDocumentParty,
     type PartyKind,
     type SavedParty,
 } from "@/lib/partyStore";
@@ -115,7 +116,13 @@ const PartyPicker = ({ kind }: { kind: PartyKind }) => {
              * put an unknown key into the invoice and fail schema validation on
              * the way to the PDF.
              */
-            const { id: _id, ...fields } = party;
+            // `notes` and `createdAt` are private CRM fields: they must never
+            // travel into an invoice, which is saved, exported and sent.
+            const rest = toDocumentParty(party);
+            const fields = {
+                ...rest,
+                shippingAddress: rest.shippingAddress ?? { address: "", zipCode: "", city: "", country: "" },
+            };
             setValue(kind, fields, {
                 shouldDirty: true,
                 shouldValidate: true,

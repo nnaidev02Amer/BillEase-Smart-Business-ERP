@@ -32,7 +32,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 
 // Components
-import { BaseButton, DynamicInvoiceTemplate } from "@/app/components";
+import BaseButton from "@/app/components/reusables/BaseButton";
+import DynamicInvoiceTemplate from "@/app/components/templates/invoice-pdf/DynamicInvoiceTemplate";
 
 // Template system
 import {
@@ -446,7 +447,7 @@ const TemplateGallery = ({ variant = "field" }: TemplateGalleryProps) => {
     const theme = useMemo(
         () => resolveTheme(themeRaw),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [themeRaw?.accentColor, themeRaw?.fontId, themeRaw?.density]
+        [themeRaw?.accentColor, themeRaw?.fontId, themeRaw?.density, themeRaw?.paper, themeRaw?.headerText, themeRaw?.footerText]
     );
 
     /*

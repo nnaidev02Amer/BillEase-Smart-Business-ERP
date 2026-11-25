@@ -9,6 +9,7 @@ import {
     densityScale,
     fontStack,
     resolveTheme,
+    tint,
     type InvoiceTheme,
 } from "./invoiceTheme";
 
@@ -72,6 +73,12 @@ export default function TemplateFrame({
     bare?: boolean;
 }) {
     const { theme, scale, dir } = ctx;
+    // Literal class strings (not computed) so the PDF stylesheet generator sees them.
+    const paperMin = {
+        a4: "print:min-h-[1123px]",
+        letter: "print:min-h-[1056px]",
+        legal: "print:min-h-[1344px]",
+    }[theme.paper];
 
     return (
         <section
@@ -90,11 +97,29 @@ export default function TemplateFrame({
                  * `overflow-hidden` on the sheet is a pagination hazard —
                  * anything landing on page 2 can be clipped away entirely.
                  */
-                className={`flex min-h-[30rem] flex-col overflow-hidden rounded-xl bg-white lg:min-h-[60rem] print:min-h-[1123px] print:overflow-visible print:rounded-none ${
+                className={`flex min-h-[30rem] flex-col overflow-hidden rounded-xl bg-white lg:min-h-[60rem] ${paperMin} print:overflow-visible print:rounded-none ${
                     bare ? "" : scale.page
                 }`}
             >
+                {theme.headerText && (
+                    <div
+                        className="order-first px-6 py-2 text-center text-[10px] font-medium uppercase tracking-wider"
+                        style={{ backgroundColor: tint(theme.accentColor, 0.9), color: "#374151" }}
+                        data-edit-field="details.theme.headerText"
+                    >
+                        {theme.headerText}
+                    </div>
+                )}
                 {children}
+                {theme.footerText && (
+                    <div
+                        className="mt-auto border-t px-6 py-3 text-center text-[10px] text-gray-500 whitespace-pre-line"
+                        style={{ borderColor: tint(theme.accentColor, 0.7) }}
+                        data-edit-field="details.theme.footerText"
+                    >
+                        {theme.footerText}
+                    </div>
+                )}
             </div>
         </section>
     );

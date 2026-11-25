@@ -7,10 +7,10 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
     return {
-        name: "Invoify — Free Invoice Generator",
-        short_name: "Invoify",
+        name: "BillEase — Smart Business & Billing Suite",
+        short_name: "BillEase",
         description:
-            "Build an invoice from thirteen templates and download it as a PDF.",
+            "Invoicing, inventory, GST, expenses and customer management in one place.",
         start_url: "/",
         display: "standalone",
         background_color: "#ffffff",

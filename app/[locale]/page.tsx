@@ -1,5 +1,5 @@
 // Components
-import { InvoiceMain } from "@/app/components";
+import InvoiceMain from "@/app/components/invoice/InvoiceMain";
 import LandingContent from "@/app/components/layout/LandingContent";
 
 // Contexts

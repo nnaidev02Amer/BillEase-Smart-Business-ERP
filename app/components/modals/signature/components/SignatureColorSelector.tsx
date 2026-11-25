@@ -1,5 +1,5 @@
 // Components
-import { BaseButton } from "@/app/components";
+import BaseButton from "@/app/components/reusables/BaseButton";
 
 // Icons
 import { Check } from "lucide-react";

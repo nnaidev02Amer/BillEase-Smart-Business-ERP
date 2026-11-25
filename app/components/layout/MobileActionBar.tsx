@@ -1,7 +1,8 @@
 "use client";
 
 // Components
-import { BaseButton, MobilePreviewSheet } from "@/app/components";
+import BaseButton from "@/app/components/reusables/BaseButton";
+import MobilePreviewSheet from "@/app/components/invoice/actions/MobilePreviewSheet";
 
 // Contexts
 import { useInvoiceContext } from "@/contexts/InvoiceContext";

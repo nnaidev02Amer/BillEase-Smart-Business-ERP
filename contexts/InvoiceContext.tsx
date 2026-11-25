@@ -5,20 +5,22 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 
-import { useRouter } from "next/navigation";
-
 // Next Intl
 import { useLocale } from "next-intl";
+import { useRouter } from "@/i18n/navigation";
 
 // RHF
 import { useFormContext } from "react-hook-form";
 
 // Hooks
 import useToasts from "@/hooks/useToasts";
+import { toast } from "@/components/ui/use-toast";
+import { useTranslationContext } from "@/contexts/TranslationContext";
 
 // Services
 import { exportInvoice } from "@/services/invoice/client/exportInvoice";
@@ -26,63 +28,82 @@ import { exportInvoice } from "@/services/invoice/client/exportInvoice";
 // Validation
 import { InvoiceSchema } from "@/lib/schemas";
 
-// Helpers
-import { nextInvoiceNumber } from "@/lib/invoiceNumber";
+// Library (saved invoices, settings, templates, recents)
+import { useInvoiceLibrary } from "@/contexts/useInvoiceLibrary";
 
 // Variables
 import {
-  FORM_DEFAULT_VALUES,
   GENERATE_PDF_API,
   SEND_PDF_API,
-  SHORT_DATE_OPTIONS,
   LOCAL_STORAGE_INVOICE_DRAFT_KEY,
   DRAFT_SAVE_DEBOUNCE_MS,
-  WARM_BROWSER_API,
 } from "@/lib/variables";
 
 // Storage
-import { readSecure, removeSecure, writeSecure } from "@/lib/secureStore";
+import { removeSecure, writeSecure } from "@/lib/secureStore";
 
 // Types
 import { ExportTypes, InvoiceType } from "@/types";
 
-/**
- * Unprefixed, unlike the newer invoify: keys — this one predates that
- * namespace and renaming it would orphan every invoice anyone has saved.
- */
-const SAVED_INVOICES_KEY = "savedInvoices";
+type LibraryValue = ReturnType<typeof useInvoiceLibrary>["value"];
 
-const defaultInvoiceContext = {
-  invoicePdf: new Blob(),
-  invoicePdfLoading: false,
-  savedInvoices: [] as InvoiceType[],
-  pdfUrl: null as string | null,
-  /** Timestamp of the last successful draft write, for the autosave indicator. */
-  draftSavedAt: null as number | null,
-  /** True while edits are sitting in the debounce window, unwritten. */
-  draftPending: false,
-  onFormSubmit: (values: InvoiceType) => {},
-  newInvoice: () => {},
-  generatePdf: async (data: InvoiceType) => {},
-  removeFinalPdf: () => {},
-  downloadPdf: () => {},
-  printPdf: () => {},
-  previewPdfInTab: () => {},
-  saveInvoice: () => {},
-  deleteInvoice: (index: number) => {},
-  sendPdfToMail: (email: string): Promise<void> => Promise.resolve(),
-  exportInvoiceAs: (exportAs: ExportTypes) => {},
-  importInvoice: (file: File) => {},
+type InvoiceContextValue = LibraryValue & {
+  invoicePdf: Blob;
+  invoicePdfLoading: boolean;
+  pdfUrl: string | null;
+  onFormSubmit: (values: InvoiceType) => void;
+  newInvoice: () => void;
+  generatePdf: (data: InvoiceType) => Promise<void>;
+  removeFinalPdf: () => void;
+  downloadPdf: () => void;
+  printPdf: () => void;
+  previewPdfInTab: () => void;
+  sendPdfToMail: (email: string) => Promise<void>;
+  exportInvoiceAs: (exportAs: ExportTypes) => void;
+  importInvoice: (file: File) => void;
 };
 
-export const InvoiceContext = createContext(defaultInvoiceContext);
+export const InvoiceContext = createContext<InvoiceContextValue | null>(null);
 
-export const useInvoiceContext = () => {
-  return useContext(InvoiceContext);
+/**
+ * Autosave status, kept out of InvoiceContext on purpose.
+ *
+ * `draftPending` flips on the first keystroke of every burst and
+ * `draftSavedAt` changes on every write. Inside InvoiceContext each of those
+ * re-rendered all ~36 consumers (every nav link included) while the user typed;
+ * only the autosave indicator reads them.
+ */
+type DraftStatus = {
+  /** Timestamp of the last successful draft write, for the autosave indicator. */
+  draftSavedAt: number | null;
+  /** True while edits are sitting in the debounce window, unwritten. */
+  draftPending: boolean;
+};
+
+const DraftStatusContext = createContext<DraftStatus>({
+  draftSavedAt: null,
+  draftPending: false,
+});
+
+export const useDraftStatus = (): DraftStatus => useContext(DraftStatusContext);
+
+export const useInvoiceContext = (): InvoiceContextValue => {
+  const ctx = useContext(InvoiceContext);
+  if (!ctx) throw new Error("useInvoiceContext must be used inside InvoiceContextProvider");
+  return ctx;
 };
 
 type InvoiceContextProviderProps = {
   children: React.ReactNode;
+};
+
+/** A message safe to show for a failed PDF request, by what went wrong. */
+const pdfFailureMessage = (status: number): string | undefined => {
+  if (status === 429) return "Too many requests. Wait a few seconds and try again.";
+  if (status === 400 || status === 413)
+    return "The invoice contains data the PDF service could not accept. Check the highlighted fields and your logo size.";
+  if (status === 504 || status === 408) return "The PDF took too long to render. Try again.";
+  return undefined;
 };
 
 export const InvoiceContextProvider = ({
@@ -95,8 +116,6 @@ export const InvoiceContextProvider = ({
   const {
     newInvoiceSuccess,
     pdfGenerationSuccess,
-    saveInvoiceSuccess,
-    modifiedInvoiceSuccess,
     sendPdfSuccess,
     sendPdfError,
     pdfGenerationError,
@@ -104,82 +123,40 @@ export const InvoiceContextProvider = ({
     importInvoiceError,
   } = useToasts();
 
-  // Get form values and methods from form context
-  const { getValues, reset, watch } = useFormContext<InvoiceType>();
+  const { getValues, reset, watch, setValue } = useFormContext<InvoiceType>();
+  const { _t } = useTranslationContext();
 
-  // Variables
   const [invoicePdf, setInvoicePdf] = useState<Blob>(new Blob());
   const [invoicePdfLoading, setInvoicePdfLoading] = useState<boolean>(false);
 
   // Lets a new PDF request cancel the one it supersedes
   const generateAbortRef = useRef<AbortController | null>(null);
 
-  // Saved invoices
-  const [savedInvoices, setSavedInvoices] = useState<InvoiceType[]>([]);
-
-  useEffect(() => {
-    let active = true;
-    // Encrypted at rest, so this is a promise now. The guard keeps a late
-    // resolve from writing into an unmounted provider.
-    readSecure<InvoiceType[]>(SAVED_INVOICES_KEY).then((saved) => {
-      if (active) setSavedInvoices(Array.isArray(saved) ? saved : []);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  /*
-   * Warm the PDF renderer.
-   *
-   * Chromium takes roughly 2.3s to launch, and on a cold serverless instance
-   * the user paid all of it on their first Generate. Kicking the launch off
-   * now overlaps it with filling in the form.
-   *
-   * Deliberately fire-and-forget: the result is ignored, and a failure leaves
-   * generation to launch the browser itself exactly as before.
-   */
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch(WARM_BROWSER_API, { signal: controller.signal }).catch(() => {});
-    return () => controller.abort();
-  }, []);
+  const library = useInvoiceLibrary({
+    onFormReplaced: useCallback(() => setInvoicePdf(new Blob()), []),
+  });
+  const { savedInvoices, changeStatus, checkStock } = library.value;
 
   /**
    * Draft autosave.
    *
-   * This used to `JSON.stringify` the entire invoice inside the `watch`
-   * callback — i.e. on every keystroke, synchronously. The invoice carries
-   * `details.invoiceLogo`, a base64 data URL allowed up to 3,000,000
-   * characters, so with a logo uploaded each character typed serialised
-   * megabytes on the main thread. That was the single largest source of the
-   * typing lag, and it was also what made modals feel slow: they open while
-   * the user is mid-interaction, so the two costs landed together.
-   *
-   * Now the latest value is parked in a ref and written on a trailing timer.
-   * The flush also runs when the tab is hidden or unloaded, so nothing is lost
-   * if the user leaves inside the debounce window.
+   * The latest value is parked in a ref and written on a trailing timer rather
+   * than serialised on every keystroke (a logo makes that megabytes). The flush
+   * also runs when the tab is hidden or unloaded, so nothing is lost if the
+   * user leaves inside the debounce window.
    */
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
   const [draftPending, setDraftPending] = useState(false);
   const pendingDraftRef = useRef<unknown>(null);
 
-  /*
-   * Encryption makes this async, which costs one guarantee worth naming: a tab
-   * killed inside the 600ms debounce may not finish the write, where the old
-   * synchronous setItem would have. The visibilitychange-to-hidden flush below
-   * is unaffected and fires on every ordinary way of leaving a page, so the
-   * loss window is narrow.
-   */
   const flushDraft = useCallback(() => {
     if (pendingDraftRef.current === null) return;
     const payload = pendingDraftRef.current;
     pendingDraftRef.current = null;
 
     void writeSecure(LOCAL_STORAGE_INVOICE_DRAFT_KEY, payload).then((ok) => {
-      // A false result is quota, disabled storage, or no usable key. The draft
-      // is a convenience, not a guarantee, so a failure must not break editing
-      // — but it must not report "Saved" either.
+      // A false result is quota, disabled storage, or no usable key. It must
+      // not break editing — but it must not report "Saved" either.
       if (ok) setDraftSavedAt(Date.now());
     });
 
@@ -215,16 +192,9 @@ export const InvoiceContextProvider = ({
   }, [watch, flushDraft]);
 
   /*
-   * Editing returns you to the live preview.
-   *
-   * The preview column switches on `invoicePdf.size`, so once a PDF existed the
-   * user was stuck looking at it: the only ways back were a "Back to live
-   * preview" button in the corner and resetting the whole form. Generating was
-   * effectively a mode you had to know how to leave, which is what made the two
-   * preview surfaces confusing.
-   *
-   * Now the first edit after a generation drops the PDF. Generating becomes an
-   * action with a result rather than a state you enter.
+   * Editing returns you to the live preview: the first real edit after a
+   * generation drops the PDF, so generating is an action with a result rather
+   * than a mode you have to know how to leave.
    */
   useEffect(() => {
     if (invoicePdf.size === 0) return;
@@ -238,13 +208,7 @@ export const InvoiceContextProvider = ({
     return () => subscription.unsubscribe();
   }, [invoicePdf.size, watch]);
 
-  /*
-   * Object URL for the generated PDF.
-   *
-   * This was a `useMemo` that created a URL and never revoked it, so every
-   * generation leaked the whole PDF for the lifetime of the page. Held in
-   * state instead, with the previous URL revoked on replace and on unmount.
-   */
+  // Object URL for the generated PDF, revoked on replace and on unmount.
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -259,150 +223,116 @@ export const InvoiceContextProvider = ({
     return () => window.URL.revokeObjectURL(url);
   }, [invoicePdf]);
 
-  /**
-   * Handles form submission.
-   *
-   * @param {InvoiceType} data - The form values used to generate the PDF.
-   */
   const onFormSubmit = (data: InvoiceType) => {
-    // Call generate pdf method
     generatePdf(data);
   };
 
   /**
-   * Generates a new invoice.
+   * Starts a blank invoice. The number is a *suggestion* from the user's
+   * numbering settings (or, in automatic mode, the saved invoices' own
+   * pattern); the field stays a normal editable input.
    */
   const newInvoice = () => {
-    /*
-     * Suggest the next number rather than leaving the field blank.
-     *
-     * Derived from the most recent saved invoice, preserving whatever scheme
-     * it used — INV0007 -> INV0008, 2026-14 -> 2026-15. It is only a
-     * suggestion: the field stays a normal editable input, because an invoice
-     * number is a legal identifier and people have their own conventions.
-     */
-    reset({
-      ...FORM_DEFAULT_VALUES,
-      details: {
-        ...FORM_DEFAULT_VALUES.details,
-        invoiceNumber: nextInvoiceNumber(savedInvoices),
-      },
-    });
+    reset(library.newInvoiceValues());
     setInvoicePdf(new Blob());
+    library.rebase(null);
 
     // Clear the draft
     void removeSecure(LOCAL_STORAGE_INVOICE_DRAFT_KEY);
 
     router.refresh();
 
-    // Toast
     newInvoiceSuccess();
   };
 
   /**
    * Generate a PDF document based on the provided data.
-   *
-   * @param {InvoiceType} data - The data used to generate the PDF.
-   * @returns {Promise<void>} - A promise that resolves when the PDF is successfully generated.
-   * @throws {Error} - If an error occurs during the PDF generation process.
+   * Failures surface as a toast with a specific reason where one is safe to
+   * give, and a retry action.
    */
-  const generatePdf = useCallback(async (data: InvoiceType) => {
-    // Cancel any in-flight generation so a re-submit doesn't race the previous
-    // one and resolve out of order.
-    generateAbortRef.current?.abort();
-    const controller = new AbortController();
-    generateAbortRef.current = controller;
+  const generatePdf = useCallback(
+    async (data: InvoiceType) => {
+      // Cancel any in-flight generation so a re-submit doesn't race the previous
+      // one and resolve out of order.
+      generateAbortRef.current?.abort();
+      const controller = new AbortController();
+      generateAbortRef.current = controller;
 
-    setInvoicePdfLoading(true);
+      setInvoicePdfLoading(true);
 
-    try {
-      // Locale travels as a query param so the server can render the PDF in
-      // the same language as the UI.
-      const response = await fetch(`${GENERATE_PDF_API}?locale=${locale}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        signal: controller.signal,
-      });
+      try {
+        // Locale travels as a query param so the server can render the PDF in
+        // the same language as the UI.
+        const response = await fetch(`${GENERATE_PDF_API}?locale=${locale}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+          signal: controller.signal,
+        });
 
-      /*
-       * Without this check an error response was read as a PDF blob and, since
-       * the JSON error body has a non-zero size, reported to the user as a
-       * successful generation.
-       */
-      if (!response.ok) {
-        throw new Error(
-          `PDF generation failed with status ${response.status}`,
-        );
+        // An error response is JSON, not a PDF; reading it as a blob would
+        // report a "successful" generation.
+        if (!response.ok) {
+          const err = new Error(`PDF generation failed with status ${response.status}`);
+          (err as Error & { status?: number }).status = response.status;
+          throw err;
+        }
+
+        const result = await response.blob();
+        setInvoicePdf(result);
+
+        if (result.size > 0) pdfGenerationSuccess();
+      } catch (err) {
+        if ((err as Error)?.name === "AbortError") {
+          // Superseded by a newer submit; the newer one owns the loading state.
+          return;
+        }
+        console.error(err);
+        pdfGenerationError({
+          message: pdfFailureMessage((err as { status?: number }).status ?? 0),
+          retry: () => void generatePdf(data),
+        });
+      } finally {
+        if (generateAbortRef.current === controller) {
+          generateAbortRef.current = null;
+          setInvoicePdfLoading(false);
+        }
       }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [locale]
+  );
 
-      const result = await response.blob();
-      setInvoicePdf(result);
-
-      if (result.size > 0) {
-        // Toast
-        pdfGenerationSuccess();
-      }
-    } catch (err) {
-      if ((err as Error)?.name === "AbortError") {
-        // Superseded by a newer submit; the newer one owns the loading state.
-        return;
-      }
-      console.error(err);
-      pdfGenerationError();
-    } finally {
-      if (generateAbortRef.current === controller) {
-        generateAbortRef.current = null;
-        setInvoicePdfLoading(false);
-      }
-    }
-  }, [locale]);
-
-  /**
-   * Removes the final PDF file and switches to Live Preview
-   */
   const removeFinalPdf = () => {
     setInvoicePdf(new Blob());
   };
 
-  /**
-   * Generates a preview of a PDF file and opens it in a new browser tab.
-   */
   const previewPdfInTab = () => {
-    // Reuses the managed URL rather than minting a second one. The previous
-    // version created a fresh object URL per click and never revoked it —
-    // revoking here is not an option either, since the new tab still needs it.
+    // Reuses the managed URL; revoking here is not an option, the new tab still
+    // needs it.
     if (pdfUrl) {
       window.open(pdfUrl, "_blank");
     }
   };
 
-  /**
-   * Downloads a PDF file.
-   */
   const downloadPdf = () => {
-    // Only download if there is an invoice
     if (invoicePdf instanceof Blob && invoicePdf.size > 0) {
-      // Create a blob URL to trigger the download
       const url = window.URL.createObjectURL(invoicePdf);
 
-      // Create an anchor element to initiate the download
       const a = document.createElement("a");
       a.href = url;
-      a.download = "invoice.pdf";
+      // The number, not "invoice.pdf" for every file. Restricted to characters
+      // that are safe in a file name on every platform.
+      const safe = (getValues().details.invoiceNumber || "invoice").replace(/[^\w.-]+/g, "_");
+      a.download = `${safe}.pdf`;
       document.body.appendChild(a);
-
-      // Trigger the download
       a.click();
+      a.remove();
 
-      // Clean up the URL object
-      window.URL.revokeObjectURL(url);
+      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
     }
   };
 
-  /**
-   * Prints a PDF file.
-   */
   const printPdf = () => {
     if (pdfUrl) {
       const printWindow = window.open(pdfUrl, "_blank");
@@ -414,80 +344,22 @@ export const InvoiceContextProvider = ({
     }
   };
 
-  // TODO: Change function name. (saveInvoiceData maybe?)
   /**
-   * Saves the invoice data to local storage.
-   */
-  const saveInvoice = async () => {
-    if (invoicePdf) {
-      // If get values function is provided, allow to save the invoice
-      if (getValues) {
-        // Retrieve the existing array from storage or initialize an empty array
-        const stored = await readSecure<InvoiceType[]>(SAVED_INVOICES_KEY);
-        const savedInvoices: InvoiceType[] = Array.isArray(stored)
-          ? stored
-          : [];
-
-        const updatedDate = new Date().toLocaleDateString(
-          "en-US",
-          SHORT_DATE_OPTIONS
-        );
-
-        const formValues = getValues();
-        formValues.details.updatedAt = updatedDate;
-
-        const existingInvoiceIndex = savedInvoices.findIndex(
-          (invoice: InvoiceType) => {
-            return (
-              invoice.details.invoiceNumber === formValues.details.invoiceNumber
-            );
-          }
-        );
-
-        // If invoice already exists
-        if (existingInvoiceIndex !== -1) {
-          savedInvoices[existingInvoiceIndex] = formValues;
-
-          // Toast
-          modifiedInvoiceSuccess();
-        } else {
-          // Add the form values to the array
-          savedInvoices.push(formValues);
-
-          // Toast
-          saveInvoiceSuccess();
-        }
-
-        await writeSecure(SAVED_INVOICES_KEY, savedInvoices);
-
-        setSavedInvoices(savedInvoices);
-      }
-    }
-  };
-
-  // TODO: Change function name. (deleteInvoiceData maybe?)
-  /**
-   * Delete an invoice from local storage based on the given index.
-   *
-   * @param {number} index - The index of the invoice to be deleted.
-   */
-  const deleteInvoice = (index: number) => {
-    if (index >= 0 && index < savedInvoices.length) {
-      const updatedInvoices = [...savedInvoices];
-      updatedInvoices.splice(index, 1);
-      setSavedInvoices(updatedInvoices);
-
-      void writeSecure(SAVED_INVOICES_KEY, updatedInvoices);
-    }
-  };
-
-  /**
-   * Send the invoice PDF to the specified email address.
-   *
-   * @param {string} email - The email address to which the Invoice PDF will be sent.
-   * @returns {Promise<void>} A promise that resolves once the email is successfully sent.
+   * Send the invoice PDF to the specified email address. A successful send
+   * moves a saved draft to "sent", which is the natural meaning of the action.
    */
   const sendPdfToMail = (email: string) => {
+    // Sending issues the invoice, which takes stock. Do not send one the
+    // inventory cannot cover.
+    const current = getValues();
+    if (current.details.status !== "sent" && !savedInvoices.some((i) => i.details.invoiceNumber === current.details.invoiceNumber && i.details.status === "sent")) {
+      const problem = checkStock({ ...current, details: { ...current.details, status: "sent" } });
+      if (problem) {
+        toast({ variant: "destructive", title: _t("inventory.cannotIssue"), description: problem });
+        return Promise.resolve();
+      }
+    }
+
     const fd = new FormData();
     fd.append("email", email);
     fd.append("invoicePdf", invoicePdf, "invoice.pdf");
@@ -499,32 +371,27 @@ export const InvoiceContextProvider = ({
     })
       .then((res) => {
         if (res.ok) {
-          // Successful toast msg
           sendPdfSuccess();
+          const number = getValues().details.invoiceNumber;
+          if (getValues().details.status === "draft" || !getValues().details.status) {
+            setValue("details.status", "sent");
+          }
+          if (savedInvoices.some((i) => i.details.invoiceNumber === number)) {
+            changeStatus(number, "sent");
+          }
         } else {
-          // Error toast msg
           sendPdfError({ email, sendPdfToMail });
         }
       })
       .catch((error) => {
         console.log(error);
-
-        // Error toast msg
         sendPdfError({ email, sendPdfToMail });
       });
   };
 
-  /**
-   * Export an invoice in the specified format using the provided form values.
-   *
-   * This function initiates the export process with the chosen export format and the form data.
-   *
-   * @param {ExportTypes} exportAs - The format in which to export the invoice.
-   */
   const exportInvoiceAs = (exportAs: ExportTypes) => {
     const formValues = getValues();
 
-    // Service to export invoice with given parameters
     exportInvoice(exportAs, formValues).catch((error) => {
       console.error("Error exporting invoice:", error);
       exportInvoiceError();
@@ -532,35 +399,30 @@ export const InvoiceContextProvider = ({
   };
 
   /**
-   * Import an invoice from a JSON file.
+   * Import an invoice from a JSON file into the form.
    *
-   * @param {File} file - The JSON file to import.
+   * The file is arbitrary input, so it is size-limited and validated against
+   * the same schema as the form before it touches form state.
    */
   const importInvoice = (file: File) => {
+    if (file.size > 10 * 1024 * 1024) {
+      importInvoiceError();
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
         const importedData = JSON.parse(event.target?.result as string);
 
-        // Parse the dates
         if (importedData.details) {
           if (importedData.details.invoiceDate) {
-            importedData.details.invoiceDate = new Date(
-              importedData.details.invoiceDate
-            );
+            importedData.details.invoiceDate = new Date(importedData.details.invoiceDate);
           }
           if (importedData.details.dueDate) {
-            importedData.details.dueDate = new Date(
-              importedData.details.dueDate
-            );
+            importedData.details.dueDate = new Date(importedData.details.dueDate);
           }
         }
 
-        /*
-         * Validate before resetting. This file is arbitrary user input, and an
-         * unvalidated reset() put malformed shapes straight into form state,
-         * which then flowed on to the PDF, export and email services.
-         */
         const validated = InvoiceSchema.safeParse(importedData);
         if (!validated.success) {
           console.error("Invalid invoice file:", validated.error.issues);
@@ -568,8 +430,8 @@ export const InvoiceContextProvider = ({
           return;
         }
 
-        // Reset form with imported data
         reset(importedData);
+        library.rebase(null);
       } catch (error) {
         console.error("Error parsing JSON file:", error);
         importInvoiceError();
@@ -578,30 +440,66 @@ export const InvoiceContextProvider = ({
     reader.readAsText(file);
   };
 
+  /*
+   * The action functions below close over state (invoicePdf, pdfUrl,
+   * savedInvoices…) and are recreated every render. Handing them to consumers
+   * directly would make the context value change every render, so consumers
+   * get stable wrappers that always call the latest version instead. Nothing
+   * can call a stale closure, and the value below only changes when data does.
+   */
+  const latest = {
+    onFormSubmit,
+    newInvoice,
+    removeFinalPdf,
+    downloadPdf,
+    printPdf,
+    previewPdfInTab,
+    sendPdfToMail,
+    exportInvoiceAs,
+    importInvoice,
+  };
+  const latestRef = useRef(latest);
+  latestRef.current = latest;
+
+  const actions = useMemo(
+    () => ({
+      onFormSubmit: (values: InvoiceType) => latestRef.current.onFormSubmit(values),
+      newInvoice: () => latestRef.current.newInvoice(),
+      removeFinalPdf: () => latestRef.current.removeFinalPdf(),
+      downloadPdf: () => latestRef.current.downloadPdf(),
+      printPdf: () => latestRef.current.printPdf(),
+      previewPdfInTab: () => latestRef.current.previewPdfInTab(),
+      sendPdfToMail: (email: string) => latestRef.current.sendPdfToMail(email),
+      exportInvoiceAs: (exportAs: ExportTypes) => latestRef.current.exportInvoiceAs(exportAs),
+      importInvoice: (file: File) => latestRef.current.importInvoice(file),
+    }),
+    []
+  );
+
+  const libraryValue = library.value;
+  const value = useMemo<InvoiceContextValue>(
+    () => ({
+      ...libraryValue,
+      invoicePdf,
+      invoicePdfLoading,
+      pdfUrl,
+      generatePdf,
+      ...actions,
+    }),
+    [libraryValue, invoicePdf, invoicePdfLoading, pdfUrl, generatePdf, actions]
+  );
+
+  const draftStatus = useMemo(
+    () => ({ draftSavedAt, draftPending }),
+    [draftSavedAt, draftPending]
+  );
+
   return (
-    <InvoiceContext.Provider
-      value={{
-        invoicePdf,
-        invoicePdfLoading,
-        savedInvoices,
-        pdfUrl,
-        draftSavedAt,
-        draftPending,
-        onFormSubmit,
-        newInvoice,
-        generatePdf,
-        removeFinalPdf,
-        downloadPdf,
-        printPdf,
-        previewPdfInTab,
-        saveInvoice,
-        deleteInvoice,
-        sendPdfToMail,
-        exportInvoiceAs,
-        importInvoice,
-      }}
-    >
-      {children}
+    <InvoiceContext.Provider value={value}>
+      <DraftStatusContext.Provider value={draftStatus}>
+        {children}
+        {library.dialogs}
+      </DraftStatusContext.Provider>
     </InvoiceContext.Provider>
   );
 };

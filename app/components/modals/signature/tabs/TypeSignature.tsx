@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { TabsContent } from "@/components/ui/tabs";
 
 // Components
-import { BaseButton, SignatureFontSelector } from "@/app/components";
+import BaseButton from "@/app/components/reusables/BaseButton";
+import SignatureFontSelector from "@/app/components/modals/signature/components/SignatureFontSelector";
 
 // Contexts
 import { useSignatureContext } from "@/contexts/SignatureContext";

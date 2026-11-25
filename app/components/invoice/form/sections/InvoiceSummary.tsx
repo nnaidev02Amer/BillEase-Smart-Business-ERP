@@ -1,13 +1,11 @@
 "use client";
 
 // Components
-import {
-    Charges,
-    FormTextarea,
-    PaymentTermPresets,
-    SignatureModal,
-    Subheading,
-} from "@/app/components";
+import Charges from "@/app/components/invoice/form/Charges";
+import FormTextarea from "@/app/components/reusables/form-fields/FormTextarea";
+import PaymentTermPresets from "@/app/components/invoice/form/PaymentTermPresets";
+import SignatureModal from "@/app/components/modals/signature/SignatureModal";
+import Subheading from "@/app/components/reusables/Subheading";
 
 // Contexts
 import { useTranslationContext } from "@/contexts/TranslationContext";
@@ -31,6 +29,12 @@ const InvoiceSummary = () => {
                         name="details.additionalNotes"
                         label={_t("form.steps.summary.additionalNotes")}
                         placeholder="Your additional notes"
+                    />
+                    <FormTextarea
+                        name="details.terms"
+                        label={_t("designer.terms")}
+                        placeholder={_t("designer.termsPlaceholder")}
+                        maxLength={2000}
                     />
                     <div className="flex flex-col gap-2">
                         <FormTextarea

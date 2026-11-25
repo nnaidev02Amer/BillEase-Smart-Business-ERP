@@ -4,13 +4,13 @@
 import { useFieldArray, useFormContext } from "react-hook-form";
 
 // Components
-import {
-    BaseButton,
-    FormCustomInput,
-    FormInput,
-    PartyPicker,
-    Subheading,
-} from "@/app/components";
+import BaseButton from "@/app/components/reusables/BaseButton";
+import FormCustomInput from "@/app/components/reusables/form-fields/FormCustomInput";
+import FormInput from "@/app/components/reusables/form-fields/FormInput";
+import PartyPicker from "@/app/components/invoice/form/PartyPicker";
+import Subheading from "@/app/components/reusables/Subheading";
+
+import GstinField from "@/app/components/reusables/form-fields/GstinField";
 
 // Contexts
 import { useTranslationContext } from "@/contexts/TranslationContext";
@@ -96,6 +96,7 @@ const BillFromSection = () => {
                     target.value = target.value.replace(/[^\d\+\-\(\)\s]/g, "");
                 }}
             />
+            <GstinField name="sender.gstin" label={_t("gst.gstin")} />
             {/* //? key = field.id fixes a bug where wrong field gets deleted  */}
             {fields?.map((field, index) => (
                 <FormCustomInput

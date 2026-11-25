@@ -13,8 +13,8 @@ import {
 } from "@/components/ui/dialog";
 
 // Components
-import { SavedInvoicesList } from "@/app/components";
-import { ImportJsonButton } from "@/app/components";
+import SavedInvoicesList from "@/app/components/modals/invoice/components/SavedInvoicesList";
+import ImportJsonButton from "@/app/components/invoice/form/sections/ImportJsonButton";
 
 // Context
 import { useInvoiceContext } from "@/contexts/InvoiceContext";

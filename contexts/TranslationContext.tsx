@@ -4,7 +4,10 @@ import React, { createContext, useContext } from "react";
 import { useTranslations } from "next-intl";
 
 const defaultTranslationContext = {
-    _t: (key: string) => "",
+    _t: ((key: string, values?: Record<string, string | number>) => "") as (
+        key: string,
+        values?: Record<string, string | number>
+    ) => string,
 };
 
 export const TranslationContext = createContext(defaultTranslationContext);

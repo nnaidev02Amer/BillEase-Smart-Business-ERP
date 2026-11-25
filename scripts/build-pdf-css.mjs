@@ -141,7 +141,7 @@ async function buildFontFaces() {
 
 const templateGlob = resolve(
     projectRoot,
-    "app/components/templates/invoice-pdf/**/*.{ts,tsx}"
+    "app/components/templates/{invoice-pdf,statement}/**/*.{ts,tsx}"
 ).replace(/\\/g, "/");
 
 async function main() {

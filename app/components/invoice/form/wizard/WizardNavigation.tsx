@@ -5,7 +5,7 @@ import { useWizard } from "@/contexts/WizardContext";
 import { useTranslationContext } from "@/contexts/TranslationContext";
 
 // Components
-import { BaseButton } from "@/app/components";
+import BaseButton from "@/app/components/reusables/BaseButton";
 
 // Steps
 import { WIZARD_STEPS } from "@/lib/wizardSteps";

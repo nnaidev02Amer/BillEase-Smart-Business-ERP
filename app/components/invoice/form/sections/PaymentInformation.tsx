@@ -1,7 +1,9 @@
 "use client";
 
 // Components
-import { FormInput, Subheading } from "@/app/components";
+import FormInput from "@/app/components/reusables/form-fields/FormInput";
+import FormTextarea from "@/app/components/reusables/form-fields/FormTextarea";
+import Subheading from "@/app/components/reusables/Subheading";
 
 // Contexts
 import { useTranslationContext } from "@/contexts/TranslationContext";
@@ -30,6 +32,14 @@ const PaymentInformation = () => {
                     placeholder={_t("form.steps.paymentInfo.accountNumber")}
                     vertical
                 />
+                <div className="@xl:col-span-2">
+                    <FormTextarea
+                        name="details.paymentInstructions"
+                        label={_t("designer.paymentInstructions")}
+                        placeholder={_t("designer.paymentInstructionsPlaceholder")}
+                        maxLength={1000}
+                    />
+                </div>
             </div>
         </section>
     );

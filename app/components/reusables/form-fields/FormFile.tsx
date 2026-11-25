@@ -15,13 +15,15 @@ import {
 import { Label } from "@/components/ui/label";
 
 // Components
-import { BaseButton } from "@/app/components";
+import BaseButton from "@/app/components/reusables/BaseButton";
 
 // Icons
 import { ImageMinus, Image } from "lucide-react";
 
 // Types
 import { NameType } from "@/types";
+import { toast } from "@/components/ui/use-toast";
+import { imageErrorMessage, validateImageFile } from "@/lib/fileValidation";
 
 type FormFileProps = {
     name: NameType;
@@ -40,9 +42,16 @@ const FormFile = ({ name, label, placeholder }: FormFileProps) => {
     const [base64Image, setBase64Image] = useState<string>(logoImage ?? "");
     const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-    const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files![0];
         if (file) {
+            // Checked by content, not by name or declared type.
+            const check = await validateImageFile(file);
+            if (!check.ok) {
+                toast({ variant: "destructive", title: "Logo not accepted", description: imageErrorMessage(check.reason) });
+                if (fileInputRef.current) fileInputRef.current.value = "";
+                return;
+            }
             const reader = new FileReader();
             reader.onload = (event) => {
                 const base64String = event.target!.result as string;

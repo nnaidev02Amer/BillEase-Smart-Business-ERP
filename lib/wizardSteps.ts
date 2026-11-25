@@ -65,6 +65,9 @@ export const WIZARD_STEPS: WizardStepDef[] = [
             "details.invoiceDate",
             "details.dueDate",
             "details.currency",
+            "details.theme",
+            "details.recurring",
+            "details.gst",
         ],
     },
     {
@@ -85,7 +88,7 @@ export const WIZARD_STEPS: WizardStepDef[] = [
             "details.paymentInformation.accountName",
             "details.paymentInformation.accountNumber",
         ],
-        errorPaths: ["details.paymentInformation"],
+        errorPaths: ["details.paymentInformation", "details.paymentInstructions"],
     },
     {
         id: 4,
@@ -94,6 +97,7 @@ export const WIZARD_STEPS: WizardStepDef[] = [
         requiredFields: ["details.paymentTerms"],
         errorPaths: [
             "details.paymentTerms",
+            "details.terms",
             "details.subTotal",
             "details.totalAmount",
             "details.discountDetails.amount",

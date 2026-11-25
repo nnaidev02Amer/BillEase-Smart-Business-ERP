@@ -6,16 +6,14 @@ import { useMemo } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 
 // Components
-import {
-    AutosaveIndicator,
-    WizardStep,
-    BillFromSection,
-    BillToSection,
-    InvoiceDetails,
-    Items,
-    PaymentInformation,
-    InvoiceSummary,
-} from "@/app/components";
+import AutosaveIndicator from "@/app/components/invoice/form/AutosaveIndicator";
+import WizardStep from "@/app/components/invoice/form/wizard/WizardStep";
+import BillFromSection from "@/app/components/invoice/form/sections/BillFromSection";
+import BillToSection from "@/app/components/invoice/form/sections/BillToSection";
+import InvoiceDetails from "@/app/components/invoice/form/sections/InvoiceDetails";
+import Items from "@/app/components/invoice/form/sections/Items";
+import PaymentInformation from "@/app/components/invoice/form/sections/PaymentInformation";
+import InvoiceSummary from "@/app/components/invoice/form/sections/InvoiceSummary";
 
 // Contexts
 import { useTranslationContext } from "@/contexts/TranslationContext";

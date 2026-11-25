@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { BaseButton } from "@/app/components";
+import BaseButton from "@/app/components/reusables/BaseButton";
 import { useInvoiceContext } from "@/contexts/InvoiceContext";
 import { useTranslationContext } from "@/contexts/TranslationContext";
 import useToasts from "@/hooks/useToasts";

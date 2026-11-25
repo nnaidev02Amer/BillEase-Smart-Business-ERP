@@ -13,6 +13,7 @@
     "predev": "node scripts/build-pdf-css.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "test:logic": "playwright test -c playwright.logic.config.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },
@@ -38,7 +39,6 @@
     "@react-email/render": "^0.0.9",
     "@react-email/tailwind": "^0.0.12",
     "@types/node": "20.6.2",
-    "@vercel/analytics": "^1.1.1",
     "autoprefixer": "10.4.15",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",

@@ -14,7 +14,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 // Components
-import { BaseButton, FormInput, FormTextarea } from "@/app/components";
+import BaseButton from "@/app/components/reusables/BaseButton";
+import FormInput from "@/app/components/reusables/form-fields/FormInput";
+import FormTextarea from "@/app/components/reusables/form-fields/FormTextarea";
+import FormSelect from "@/app/components/reusables/form-fields/FormSelect";
+import ProductPicker from "@/app/components/invoice/form/ProductPicker";
+import { DEFAULT_GST_RATE, GST_RATES } from "@/lib/gst";
 
 // Contexts
 import { useTranslationContext } from "@/contexts/TranslationContext";
@@ -71,6 +76,17 @@ const SingleItem = ({
         name: `${name}[${index}].total`,
         control,
     });
+
+    // GST
+    const gstEnabled = useWatch({ name: `details.gst.enabled`, control }) === true;
+    const gstRate = useWatch({ name: `${name}[${index}].gstRate`, control });
+
+    // A line added or loaded before GST was switched on has no rate yet.
+    useEffect(() => {
+        if (gstEnabled && (gstRate === undefined || gstRate === null)) {
+            setValue(`${name}[${index}].gstRate`, DEFAULT_GST_RATE);
+        }
+    }, [gstEnabled, gstRate, name, index, setValue]);
 
     // Currency
     const currency = useWatch({
@@ -158,6 +174,7 @@ const SingleItem = ({
                     </BaseButton>
                 </div>
             </div>
+            <ProductPicker name={name} index={index} />
             {/*
              * Name spans the full row on phones; quantity and rate share a row
              * beneath it. From sm up all four sit on one 12-column line.
@@ -207,6 +224,34 @@ const SingleItem = ({
                     />
                 </div>
             </div>
+            {gstEnabled && (
+                <div className="grid grid-cols-2 gap-x-3 gap-y-4">
+                    <FormInput
+                        name={`${name}[${index}].hsn`}
+                        label={_t("gst.hsn")}
+                        placeholder={_t("gst.hsnPlaceholder")}
+                        inputMode="numeric"
+                        maxLength={8}
+                        vertical
+                        onInput={(e) => {
+                            const t = e.target as HTMLInputElement;
+                            t.value = t.value.replace(/\D/g, "");
+                        }}
+                    />
+                    <FormSelect
+                        name={`${name}[${index}].gstRate`}
+                        label={_t("gst.rate")}
+                        options={[
+                            ...GST_RATES.map((r) => ({ value: String(r), label: `${r}%` })),
+                            // Keep a custom rate (imported or hand-edited) selectable.
+                            ...(gstRate !== undefined && !GST_RATES.includes(gstRate)
+                                ? [{ value: String(gstRate), label: `${gstRate}%` }]
+                                : []),
+                        ]}
+                        fromValue={(v) => Number(v)}
+                    />
+                </div>
+            )}
             <FormTextarea
                 name={`${name}[${index}].description`}
                 label={_t("form.steps.lineItems.description")}

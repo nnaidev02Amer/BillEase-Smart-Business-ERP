@@ -7,23 +7,25 @@ import { useFormContext } from "react-hook-form";
 import { Form } from "@/components/ui/form";
 
 // Components
-import {
-    InvoiceActions,
-    InvoiceForm,
-    MobileActionBar,
-} from "@/app/components";
+import InvoiceActions from "@/app/components/invoice/InvoiceActions";
+import InvoiceForm from "@/app/components/invoice/InvoiceForm";
+import MobileActionBar from "@/app/components/layout/MobileActionBar";
 
 // Context
 import { useInvoiceContext } from "@/contexts/InvoiceContext";
 
 // Hooks
 import useToasts from "@/hooks/useToasts";
+import { useWarmPdfRenderer } from "@/hooks/useWarmPdfRenderer";
 
 // Types
 import { InvoiceType } from "@/types";
 
 const InvoiceMain = () => {
     const formContext = useFormContext<InvoiceType>();
+
+    // The builder is where PDFs get generated; no other route needs Chromium up.
+    useWarmPdfRenderer();
     const { handleSubmit } = formContext;
 
     // Get the needed values from invoice context

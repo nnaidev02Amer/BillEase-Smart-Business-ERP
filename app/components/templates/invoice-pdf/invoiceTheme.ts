@@ -18,17 +18,42 @@ export type InvoiceDensity = "compact" | "comfortable" | "spacious";
 
 export type InvoiceFontId = "outfit" | "plexSans" | "sourceSerif" | "plexMono";
 
+export type InvoicePaper = "a4" | "letter" | "legal";
+
+/**
+ * Page sizes at 96dpi. `height` drives the sheet's minimum height so a short
+ * invoice still fills the page, and `viewport` is what the PDF renderer lays
+ * the document out against — it must match the paper or `sm:`/`lg:` styles and
+ * the bottom edge drift from the preview.
+ */
+export const PAPER_SIZES: Record<
+    InvoicePaper,
+    { label: string; viewport: { width: number; height: number }; pdfFormat: "a4" | "letter" | "legal" }
+> = {
+    a4: { label: "A4 (210 × 297 mm)", viewport: { width: 794, height: 1123 }, pdfFormat: "a4" },
+    letter: { label: "US Letter (8.5 × 11 in)", viewport: { width: 816, height: 1056 }, pdfFormat: "letter" },
+    legal: { label: "US Legal (8.5 × 14 in)", viewport: { width: 816, height: 1344 }, pdfFormat: "legal" },
+};
+
 export type InvoiceTheme = {
     /** Hex colour used for headings, rules and accent fills. */
     accentColor: string;
     fontId: InvoiceFontId;
     density: InvoiceDensity;
+    paper: InvoicePaper;
+    /** Printed across the top of every page, when set. */
+    headerText: string;
+    /** Printed across the bottom, when set. */
+    footerText: string;
 };
 
 export const DEFAULT_INVOICE_THEME: InvoiceTheme = {
     accentColor: "#4F46E5",
     fontId: "outfit",
     density: "comfortable",
+    paper: "a4",
+    headerText: "",
+    footerText: "",
 };
 
 /** Offered in the gallery; a custom hex is also allowed. */
@@ -161,6 +186,9 @@ export function resolveTheme(theme?: Partial<InvoiceTheme>): InvoiceTheme {
         accentColor: theme?.accentColor || DEFAULT_INVOICE_THEME.accentColor,
         fontId: theme?.fontId || DEFAULT_INVOICE_THEME.fontId,
         density: theme?.density || DEFAULT_INVOICE_THEME.density,
+        paper: theme?.paper && theme.paper in PAPER_SIZES ? theme.paper : DEFAULT_INVOICE_THEME.paper,
+        headerText: theme?.headerText ?? "",
+        footerText: theme?.footerText ?? "",
     };
 }
 
